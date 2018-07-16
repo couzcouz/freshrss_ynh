@@ -8,7 +8,7 @@ set -eu
 
 # Retrieve arguments
 domain=$YNH_APP_ARG_DOMAIN
-path=${YNH_APP_ARG_PATH%/}
+path=$YNH_APP_ARG_PATH
 admin_user=$YNH_APP_ARG_ADMIN
 # Setup variables
 app=$YNH_APP_INSTANCE_NAME
@@ -16,18 +16,19 @@ db_user=$app
 db_name=$app
 
 FINAL_PATH="/var/www/$app"
+test ! -e "$FINAL_PATH" || ynh_die "This path already contains a folder"
 
 # Source app helpers
-. /usr/share/yunohost/helpers
+source /usr/share/yunohost/helpers
 
-# if path do not begin with / add a / at the begining
-if [ "${path:0:1}" != "/" ]; then
-       path="/$path"
-fi
-# if path do not end with / add a / at the end
-if [ "${path:${#path}-1}" == "/" ] && [ ${#path} -gt 1 ]; then
-       path="${path:0:${#path}-1}"
-fi
+# Normalize the url path syntax
+path=$(ynh_normalize_url_path $path)
+
+# Check web path availability
+ynh_webpath_available $domain $path
+
+# Register (book) web path
+ynh_webpath_register $app $domain $path
 
 # keep domain for later
 ynh_app_setting_set $app domain $domain
@@ -38,12 +39,8 @@ if [[ $admin_user != '' ]]; then
     ynh_app_setting_set $app admin_user $admin_user
 fi
 
-# Check domain/path availability
-sudo yunohost app checkurl $domain$path -a $app || ynh_die "The path ${domain}${path} is not available for app installation."
-
 #install php5-cli
-ynh_package_install_from_equivs ../conf/${DEPS_PKG_NAME}.control \
-  || ynh_die "Unable to install dependencies"
+ynh_install_app_dependencies php5-cli
 
 # Generate random DES key & password
 deskey=$(ynh_string_random)
